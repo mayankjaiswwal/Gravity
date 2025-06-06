@@ -1,0 +1,85 @@
+Ans 3 a) 
+Assuming cloud as AWS, Will use cloud watch 
+Will install cloud watch agent for disk and memory metrics:
+
+sudo yum install amazon-cloudwatch-agent -y   
+
+Setting up agent config file:
+
+{
+  "agent": {
+    "metrics_collection_interval": 60,
+    "run_as_user": "root"
+  },
+  "metrics": {
+    "append_dimensions": {
+      "InstanceId": "${aws:InstanceId}"
+    },
+    "metrics_collected": {
+      "mem": {
+        "measurement": [
+          "mem_used_percent"
+        ],
+        "metrics_collection_interval": 60
+      },
+      "disk": {
+        "measurement": [
+          "used_percent"
+        ],
+        "metrics_collection_interval": 60,
+        "resources": [
+          "/"
+        ]
+      }
+    }
+  }
+}
+
+Save it to: /opt/aws/amazon-cloudwatch-agent/etc/cloudwatch-config.json
+
+Start cloud watch agent
+
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+-a fetch-config \
+-m ec2 \
+-c file:/opt/aws/amazon-cloudwatch-agent/etc/cloudwatch-config.json \
+-s
+
+Use aws iam rule policy for cloud watch agent 
+
+AWS Console → CloudWatch → Metrics → All → EC2 → CWAgent
+Look for:
+
+mem_used_percent
+
+disk_used_percent
+
+CPUUtilization
+
+And 3b)
+
+#!/bin/bash
+
+# ------------------------------
+# Configuration
+# ------------------------------
+
+THRESHOLD=80                          # Set CPU usage threshold
+EMAIL="your-email@example.com"       # Set recipient email
+HOSTNAME=$(hostname)                 # Get the system's hostname
+SUBJECT="High CPU Alert on $HOSTNAME"
+
+# ------------------------------
+# CPU Usage Check
+# ------------------------------
+
+CPU_USAGE=$(top -bn1 | grep "Cpu(s)" | awk '{print 100 - $8}')
+CPU_INT=${CPU_USAGE%.*}              
+# ------------------------------
+# Alert Condition
+# ------------------------------
+
+if [ "$CPU_INT" -ge "$THRESHOLD" ]; then
+    MESSAGE="Warning: CPU usage is at ${CPU_USAGE}% on $HOSTNAME."
+    echo "$MESSAGE" | mail -s "$SUBJECT" "$EMAIL"
+fi
