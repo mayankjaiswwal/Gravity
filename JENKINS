@@ -1,0 +1,45 @@
+pipeline {
+    agent any
+
+    environment {
+        REMOTE_HOST = "ec2-user@10.10.10.10" // Replace with actual IP
+        REMOTE_PATH = "/usr/share/nginx/html"
+        SSH_CREDENTIALS = "ec2-ssh" // ID of your Jenkins SSH credentials
+    }
+
+    stages {
+        stage('Clone Repository') {
+            steps {
+                git url: 'https://github.com/MayankJaiswwal/Gravity/', branch: 'main'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                echo 'Running basic tests...'
+                sh 'test -f index.html'
+            }
+        }
+
+        stage('Deploy to EC2') {
+            steps {
+                echo "Deploying files to EC2 at ${REMOTE_HOST}"
+                sshagent (credentials: [env.SSH_CREDENTIALS]) {
+                    sh """
+                    scp -o StrictHostKeyChecking=no index.html ${REMOTE_HOST}:/tmp/
+                    ssh -o StrictHostKeyChecking=no ${REMOTE_HOST} 'sudo mv /tmp/index.html ${REMOTE_PATH}/index.html && sudo chown nginx:nginx ${REMOTE_PATH}/index.html'
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Deployment to EC2 successful!"
+        }
+        failure {
+            echo "Deployment failed."
+        }
+    }
+}
